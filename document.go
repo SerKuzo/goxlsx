@@ -4,7 +4,7 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"fmt"
-	"goxlsx/internal/xmltree"
+	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
 	"strings"
 )
 
