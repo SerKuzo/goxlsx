@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"goxlsx"
+	"gitverse.ru/sergius24/goxlsx"
 )
 
 func main() {
