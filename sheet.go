@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
 	"io"
 	"strconv"
+
+	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
 )
 
 func (d *ExcelDoc) GetSheets() ([]xmltree.Sheet, error) {

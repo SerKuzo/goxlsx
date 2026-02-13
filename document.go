@@ -4,8 +4,9 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"fmt"
-	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
 	"strings"
+
+	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
 )
 
 // ExcelDoc — основная структура для работы с документом
