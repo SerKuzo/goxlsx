@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"encoding/xml"
 	"fmt"
+	pathpkg "path"
+	"path/filepath"
 	"strings"
 
 	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
@@ -11,11 +13,13 @@ import (
 
 // ExcelDoc — основная структура для работы с документом
 type ExcelDoc struct {
-	content *zip.ReadCloser
+	content    *zip.ReadCloser
+	sourcePath string
 	// Карта для быстрого поиска файлов внутри архива (например, "xl/sharedStrings.xml")
 	files         map[string]*zip.File
 	sharedStrings []string
 	sheetMap      map[string]string // Карта: "Лист1" -> "xl/worksheets/sheet1.xml"
+	modifiedFiles map[string][]byte
 }
 
 // Open открывает xlsx файл и подготавливает его к чтению
@@ -27,22 +31,25 @@ func Open(path string) (*ExcelDoc, error) {
 	}
 
 	doc := &ExcelDoc{
-		content: reader,
-		files:   make(map[string]*zip.File),
+		content:       reader,
+		files:         make(map[string]*zip.File),
+		modifiedFiles: make(map[string][]byte),
 	}
+	doc.sourcePath, _ = filepath.Abs(path)
 
 	// 2. Индексируем файлы внутри архива для удобного доступа
 	for _, f := range reader.File {
 		doc.files[f.Name] = f
 	}
 
-	err1 := doc.loadSheetMap()
-	if err1 != nil {
-		return nil, err1
+	if err := doc.loadSheetMap(); err != nil {
+		_ = reader.Close()
+		return nil, err
 	}
 
-	if len(doc.sharedStrings) == 0 {
-		doc.loadSharedStrings()
+	if err := doc.loadSharedStrings(); err != nil {
+		_ = reader.Close()
+		return nil, err
 	}
 
 	return doc, nil
@@ -50,7 +57,12 @@ func Open(path string) (*ExcelDoc, error) {
 
 // Close закрывает дескриптор файла
 func (d *ExcelDoc) Close() error {
-	return d.content.Close()
+	if d == nil || d.content == nil {
+		return nil
+	}
+	content := d.content
+	d.content = nil
+	return content.Close()
 }
 
 func (d *ExcelDoc) loadSheetMap() error {
@@ -73,11 +85,22 @@ func (d *ExcelDoc) loadSheetMap() error {
 	}
 
 	// Читаем workbook.xml.rels (rId -> Путь)
-	relFile, _ := d.files["xl/_rels/workbook.xml.rels"]
-	rc, _ = relFile.Open()
+	relFile, ok := d.files["xl/_rels/workbook.xml.rels"]
+	if !ok {
+		return fmt.Errorf("workbook.xml.rels не найден в архиве")
+	}
+	rc, err = relFile.Open()
+	if err != nil {
+		return err
+	}
 	var rels xmltree.Relationships
-	_ = xml.NewDecoder(rc).Decode(&rels)
-	rc.Close()
+	if err := xml.NewDecoder(rc).Decode(&rels); err != nil {
+		_ = rc.Close()
+		return fmt.Errorf("ошибка парсинга workbook relationships: %w", err)
+	}
+	if err := rc.Close(); err != nil {
+		return err
+	}
 
 	// Создаем временную карту rId -> Target
 	idToPath := make(map[string]string)
@@ -88,10 +111,19 @@ func (d *ExcelDoc) loadSheetMap() error {
 	// 3. Сопоставляем Имя листа с полным Путем
 	d.sheetMap = make(map[string]string)
 	for _, s := range wb.Sheets {
-		targetPath := idToPath[s.RID]
-		// Важно: в rels пути относительные, добавляем префикс "xl/"
+		targetPath, ok := idToPath[s.RID]
+		if !ok || strings.TrimSpace(targetPath) == "" {
+			return fmt.Errorf("путь листа %s не найден в relationships", s.Name)
+		}
+		targetPath = strings.ReplaceAll(targetPath, "\\", "/")
+		targetPath = strings.TrimPrefix(targetPath, "/")
 		if !strings.HasPrefix(targetPath, "xl/") {
-			targetPath = "xl/" + targetPath
+			targetPath = pathpkg.Join("xl", targetPath)
+		} else {
+			targetPath = pathpkg.Clean(targetPath)
+		}
+		if _, ok := d.files[targetPath]; !ok {
+			return fmt.Errorf("файл листа %s не найден в архиве", targetPath)
 		}
 		d.sheetMap[s.Name] = targetPath
 	}
@@ -120,7 +152,93 @@ func (d *ExcelDoc) loadSharedStrings() error {
 	// Вытаскиваем только текст из структур в плоский слайс
 	d.sharedStrings = make([]string, len(sst.SI))
 	for i, si := range sst.SI {
-		d.sharedStrings[i] = si.T
+		d.sharedStrings[i] = si.String()
 	}
 	return nil
+}
+
+func (d *ExcelDoc) GetMergedCells(sheetName string) ([]string, error) {
+	if d == nil || d.content == nil {
+		return nil, fmt.Errorf("документ не открыт")
+	}
+	path, ok := d.sheetMap[sheetName]
+	if !ok {
+		return nil, fmt.Errorf("лист %s не найден", sheetName)
+	}
+
+	file, ok := d.files[path]
+	if !ok {
+		return nil, fmt.Errorf("файл листа %s не найден в архиве", path)
+	}
+	rc, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	var xmlSheet xmltree.XMLWorksheet
+	if err := xml.NewDecoder(rc).Decode(&xmlSheet); err != nil {
+		return nil, err
+	}
+
+	// Собираем все диапазоны в простой слайс строк
+	var merged []string
+	for _, mc := range xmlSheet.MergeCells.Cells {
+		merged = append(merged, mc.Ref)
+	}
+
+	return merged, nil
+}
+
+// метод, который при чтении строк будет проверять каждую ячейку на принадлежность к «мерджу».
+func (d *ExcelDoc) GetRowsWithMerged(sheetName string) ([][]string, error) {
+	rawMerged, err := d.GetMergedCells(sheetName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Используем срез структур из пакета xmltree
+	var ranges []xmltree.MergeRange
+	for _, r := range rawMerged {
+		mRange, err := xmltree.ParseRange(r)
+		if err != nil {
+			return nil, fmt.Errorf("объединённый диапазон %s: %w", r, err)
+		}
+		ranges = append(ranges, mRange)
+	}
+
+	rows, err := d.GetRows(sheetName)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range ranges {
+		for len(rows) <= m.MaxRow {
+			rows = append(rows, nil)
+		}
+		for rowIndex := m.MinRow; rowIndex <= m.MaxRow; rowIndex++ {
+			for len(rows[rowIndex]) <= m.MaxCol {
+				rows[rowIndex] = append(rows[rowIndex], "")
+			}
+		}
+	}
+
+	for rIdx := range rows {
+		for cIdx := range rows[rIdx] {
+			if rows[rIdx][cIdx] == "" {
+				for _, m := range ranges {
+					// Проверяем вхождение в диапазон
+					if rIdx >= m.MinRow && rIdx <= m.MaxRow &&
+						cIdx >= m.MinCol && cIdx <= m.MaxCol {
+
+						// Защита от выхода за границы при обращении к главной ячейке
+						if m.MinRow < len(rows) && m.MinCol < len(rows[m.MinRow]) {
+							rows[rIdx][cIdx] = rows[m.MinRow][m.MinCol]
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+	return rows, nil
 }

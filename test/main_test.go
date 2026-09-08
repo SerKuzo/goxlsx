@@ -1,7 +1,7 @@
 package test
 
 import (
-	"goxlsx"
+	"gitverse.ru/sergius24/goxlsx"
 	"testing"
 )
 
@@ -17,6 +17,7 @@ func BenchmarkMyFunction(b *testing.B) {
 		sheets, _ := doc.GetSheets()
 		for _, sheet := range sheets {
 			_, _ = doc.GetRows(sheet.Name)
+
 		}
 	}
 
