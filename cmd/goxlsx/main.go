@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	"gitverse.ru/sergius24/goxlsx"
+	"github.com/Puzzanis/goxlsx.git"
 )
 
 // вырезаем число после буквы 'A' и сравниваем его
@@ -55,9 +55,11 @@ func main() {
 	//	m, _ := doc.GetMergedCells(sheet.Name)
 	//	fmt.Println(m)
 	//}
-	m, _ := doc.GetMergedCells("Таблица сигналов")
-	sortExcelRanges(m)
+
+	m, _ := doc.GetRows("Таблица сигналов")
+	//sortExcelRanges(m)
 	fmt.Println(m)
+
 	//for _, sheet := range sheets {
 	//	fmt.Println(sheet.Name)
 	//}

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
+	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
 )
 
 // SetCellString changes a cell to a literal string value. The change is kept

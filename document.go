@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
+	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
 )
 
 // ExcelDoc — основная структура для работы с документом

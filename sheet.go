@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gitverse.ru/sergius24/goxlsx/internal/xmltree"
+	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
 )
 
 func (d *ExcelDoc) GetSheets() ([]xmltree.Sheet, error) {
