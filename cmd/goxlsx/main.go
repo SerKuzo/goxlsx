@@ -56,7 +56,8 @@ func main() {
 	//	fmt.Println(m)
 	//}
 
-	m, _ := doc.GetRows("Таблица сигналов")
+	//m, _ := doc.GetRows("Таблица сигналов")
+	m, _ := doc.GetCellValue("Таблица сигналов", "A6")
 	//sortExcelRanges(m)
 	fmt.Println(m)
 
