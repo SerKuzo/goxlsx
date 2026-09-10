@@ -20,6 +20,7 @@ type ExcelDoc struct {
 	sharedStrings []string
 	sheetMap      map[string]string // Карта: "Лист1" -> "xl/worksheets/sheet1.xml"
 	modifiedFiles map[string][]byte
+	sheetData     map[string][]byte // Распакованные листы, чтобы не читать ZIP повторно
 }
 
 // Open открывает xlsx файл и подготавливает его к чтению
@@ -34,6 +35,7 @@ func Open(path string) (*ExcelDoc, error) {
 		content:       reader,
 		files:         make(map[string]*zip.File),
 		modifiedFiles: make(map[string][]byte),
+		sheetData:     make(map[string][]byte),
 	}
 	doc.sourcePath, _ = filepath.Abs(path)
 

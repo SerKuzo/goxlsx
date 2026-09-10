@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html"
-	"strconv"
 	"strings"
 
 	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
@@ -74,7 +73,7 @@ func parseRows(data []byte, sharedStrings []string) ([][]string, error) {
 			}
 		}
 
-		rowNumber, _ := strconv.Atoi(attributeValueRaw(data[rowStart:rowOpenEnd], "r"))
+		rowNumber, _ := parseDecimal(attributeValueRaw(data[rowStart:rowOpenEnd], "r"))
 		rowIndex := rowNumber - 1
 		if rowIndex < 0 {
 			rowIndex = lastRowIndex + 1
@@ -97,6 +96,11 @@ func parseRows(data []byte, sharedStrings []string) ([][]string, error) {
 }
 
 func parseCells(row []byte, sharedStrings []string, output *[]string) {
+	if maxColumn := maxCellColumn(row); maxColumn >= 0 {
+		if len(*output) < maxColumn+1 {
+			*output = make([]string, maxColumn+1)
+		}
+	}
 	position := 0
 	for {
 		cellStart, cellOpenEnd := findStartTag(row, position, "c")
@@ -118,30 +122,56 @@ func parseCells(row []byte, sharedStrings []string, output *[]string) {
 			cellDataEnd = findTagEnd(row, closing) + 1
 		}
 
-		columnIndex, _, err := xmltree.ParseCellRef(attributeValueRaw(row[cellStart:cellOpenEnd], "r"))
+		columnIndex, _, err := parseCellRefRaw(attributeValueRaw(row[cellStart:cellOpenEnd], "r"))
 		if err == nil {
-			for len(*output) <= columnIndex {
-				*output = append(*output, "")
-			}
 			value := cellValueRaw(cellData, attributeValueRaw(row[cellStart:cellOpenEnd], "t"), sharedStrings)
+			if len(*output) <= columnIndex {
+				*output = append(*output, make([]string, columnIndex+1-len(*output))...)
+			}
 			(*output)[columnIndex] = value
 		}
 		position = cellDataEnd
 	}
 }
 
-func cellValueRaw(data []byte, cellType string, sharedStrings []string) string {
-	value := tagText(data, "v")
-	if cellType == "inlineStr" {
-		value = inlineText(data)
+func maxCellColumn(row []byte) int {
+	maxColumn := -1
+	position := 0
+	for {
+		cellStart, cellOpenEnd := findStartTag(row, position, "c")
+		if cellStart < 0 {
+			return maxColumn
+		}
+		if column, _, err := parseCellRefRaw(attributeValueRaw(row[cellStart:cellOpenEnd], "r")); err == nil && column > maxColumn {
+			maxColumn = column
+		}
+		position = cellOpenEnd
 	}
-	value = html.UnescapeString(value)
-	if cellType == "s" {
-		index, err := strconv.Atoi(value)
-		if err == nil && index >= 0 && index < len(sharedStrings) {
+}
+
+func cellValueRaw(data []byte, cellType []byte, sharedStrings []string) string {
+	var value string
+	valueStart, valueOpenEnd := findStartTag(data, 0, "v")
+	if valueStart < 0 {
+		valueStart, valueOpenEnd = -1, -1
+	} else {
+		valueStart = valueOpenEnd
+	}
+	valueEnd := -1
+	if valueOpenEnd >= 0 {
+		valueEnd = findClosingTag(data, valueOpenEnd, "v")
+	}
+	if len(cellType) == len("inlineStr") && stringEqual(cellType, "inlineStr") {
+		value = inlineText(data)
+	} else if len(cellType) == 1 && cellType[0] == 's' && valueStart >= 0 && valueEnd >= valueStart {
+		if index, ok := parseDecimal(data[valueStart:valueEnd]); ok && index >= 0 && index < len(sharedStrings) {
 			return sharedStrings[index]
 		}
+		value = string(data[valueStart:valueEnd])
+	} else if valueStart >= 0 && valueEnd >= valueStart {
+		value = string(data[valueStart:valueEnd])
 	}
+	value = html.UnescapeString(value)
 	return value
 }
 
@@ -160,18 +190,6 @@ func inlineText(data []byte) string {
 		result.WriteString(html.UnescapeString(string(data[openEnd:close])))
 		position = findTagEnd(data, close) + 1
 	}
-}
-
-func tagText(data []byte, name string) string {
-	start, openEnd := findStartTag(data, 0, name)
-	if start < 0 {
-		return ""
-	}
-	close := findClosingTag(data, openEnd, name)
-	if close < 0 {
-		return ""
-	}
-	return string(data[openEnd:close])
 }
 
 func findStartTag(data []byte, from int, name string) (start, end int) {
@@ -235,7 +253,7 @@ func isTagBoundary(value byte) bool {
 	return value == '>' || value == '/' || value == ' ' || value == '\t' || value == '\r' || value == '\n'
 }
 
-func attributeValueRaw(tag []byte, name string) string {
+func attributeValueRaw(tag []byte, name string) []byte {
 	for position := 0; position < len(tag); {
 		for position < len(tag) && (tag[position] == '<' || tag[position] == '>' || tag[position] == '/' || tag[position] == ' ' || tag[position] == '\t' || tag[position] == '\r' || tag[position] == '\n') {
 			position++
@@ -244,7 +262,7 @@ func attributeValueRaw(tag []byte, name string) string {
 		for position < len(tag) && tag[position] != '=' && tag[position] != ' ' && tag[position] != '\t' && tag[position] != '\r' && tag[position] != '\n' && tag[position] != '>' && tag[position] != '/' {
 			position++
 		}
-		attributeName := string(tag[start:position])
+		attributeEnd := position
 		for position < len(tag) && (tag[position] == ' ' || tag[position] == '\t' || tag[position] == '\r' || tag[position] == '\n') {
 			position++
 		}
@@ -264,12 +282,60 @@ func attributeValueRaw(tag []byte, name string) string {
 		for position < len(tag) && tag[position] != quote {
 			position++
 		}
-		if attributeName == name {
-			return html.UnescapeString(string(tag[valueStart:position]))
+		if stringEqual(tag[start:attributeEnd], name) {
+			return tag[valueStart:position]
 		}
 		if position < len(tag) {
 			position++
 		}
 	}
-	return ""
+	return nil
+}
+
+func stringEqual(value []byte, expected string) bool {
+	if len(value) != len(expected) {
+		return false
+	}
+	for i := range value {
+		if value[i] != expected[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func parseDecimal(value []byte) (int, bool) {
+	if len(value) == 0 {
+		return 0, false
+	}
+	number := 0
+	for _, digit := range value {
+		if digit < '0' || digit > '9' {
+			return 0, false
+		}
+		number = number*10 + int(digit-'0')
+	}
+	return number, true
+}
+
+func parseCellRefRaw(ref []byte) (col, row int, err error) {
+	separator := 0
+	for separator < len(ref) && ((ref[separator] >= 'A' && ref[separator] <= 'Z') || (ref[separator] >= 'a' && ref[separator] <= 'z')) {
+		separator++
+	}
+	if separator == 0 || separator == len(ref) {
+		return 0, 0, fmt.Errorf("неверный адрес ячейки")
+	}
+	for i := 0; i < separator; i++ {
+		letter := ref[i]
+		if letter >= 'a' && letter <= 'z' {
+			letter -= 'a' - 'A'
+		}
+		col = col*26 + int(letter-'A') + 1
+	}
+	parsedRow, ok := parseDecimal(ref[separator:])
+	if !ok || parsedRow == 0 {
+		return 0, 0, fmt.Errorf("неверный номер строки")
+	}
+	return col - 1, parsedRow - 1, nil
 }

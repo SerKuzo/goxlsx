@@ -88,6 +88,9 @@ func (d *ExcelDoc) sheetBytes(path string) ([]byte, error) {
 	if data, ok := d.modifiedFiles[path]; ok {
 		return append([]byte(nil), data...), nil
 	}
+	if data, ok := d.sheetData[path]; ok {
+		return data, nil
+	}
 
 	file, ok := d.files[path]
 	if !ok {
@@ -103,6 +106,7 @@ func (d *ExcelDoc) sheetBytes(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	d.sheetData[path] = data
 	return data, nil
 }
 
@@ -384,6 +388,7 @@ func (d *ExcelDoc) Save(path string) error {
 		}
 		d.content = reader
 		d.files = make(map[string]*zip.File, len(reader.File))
+		d.sheetData = make(map[string][]byte)
 		for _, file := range reader.File {
 			d.files[file.Name] = file
 		}
