@@ -15,8 +15,8 @@ func BenchmarkWorkbookRead(b *testing.B) {
 		b.Fatalf("Failed to open file: %v", err) // Остановит бенчмарк и покажет реальную причину
 	}
 	b.ResetTimer() // Очищаем время, потраченное на чтение файла
+	sheets, _ := doc.GetSheets()
 	for i := 0; i < b.N; i++ {
-		sheets, _ := doc.GetSheets()
 		for _, sheet := range sheets {
 			_, _ = doc.GetRows(sheet.Name)
 
