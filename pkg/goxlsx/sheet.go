@@ -56,7 +56,7 @@ func (d *ExcelDoc) GetRows(sheetName string) ([][]string, error) {
 }
 
 func parseRows(data []byte, sharedStrings []string) ([][]string, error) {
-	var result [][]string
+	result := make([][]string, maxRowCount(data))
 	position := 0
 	lastRowIndex := -1
 	for {
@@ -78,8 +78,8 @@ func parseRows(data []byte, sharedStrings []string) ([][]string, error) {
 		if rowIndex < 0 {
 			rowIndex = lastRowIndex + 1
 		}
-		for len(result) <= rowIndex {
-			result = append(result, nil)
+		if rowIndex >= len(result) {
+			result = append(result, make([][]string, rowIndex-len(result)+1)...)
 		}
 		if rowIndex > lastRowIndex {
 			lastRowIndex = rowIndex
@@ -93,6 +93,25 @@ func parseRows(data []byte, sharedStrings []string) ([][]string, error) {
 		}
 	}
 	return result, nil
+}
+
+// maxRowCount возвращает размер полного набора данных, необходимый для GetRows..
+// XLSX файлы могут содержать строку с номером, близким к пределу (например
+// 1,048,568), предварительное определение этого значения
+// позволяет избежать многократного расширения среза и копирования данных.
+func maxRowCount(data []byte) int {
+	maxRow := 0
+	position := 0
+	for {
+		rowStart, rowOpenEnd := findStartTag(data, position, "row")
+		if rowStart < 0 {
+			return maxRow
+		}
+		if rowNumber, ok := parseDecimal(attributeValueRaw(data[rowStart:rowOpenEnd], "r")); ok && rowNumber > maxRow {
+			maxRow = rowNumber
+		}
+		position = rowOpenEnd
+	}
 }
 
 func parseCells(row []byte, sharedStrings []string, output *[]string) {

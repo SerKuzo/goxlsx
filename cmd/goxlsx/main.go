@@ -37,7 +37,7 @@ func sortExcelRanges(m []string) {
 }
 
 func main() {
-	doc, err := goxlsx.Open("testdata/mns2_bachkun_io.xlsm")
+	doc, err := goxlsx.Open("testdata/Ex1.xlsm")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -56,10 +56,10 @@ func main() {
 	fmt.Println(sheets)
 	//}
 
-	//m, _ := doc.GetRows("Таблица сигналов")
+	m, _ := doc.GetRows("Таблица сигналов")
 	//m, _ := doc.GetMergedCells("Таблица сигналов")
 	//sortExcelRanges(m)
-	//fmt.Println(m)
+	fmt.Println(m)
 
 	//for _, sheet := range sheets {
 	//	fmt.Println(sheet.Name)
