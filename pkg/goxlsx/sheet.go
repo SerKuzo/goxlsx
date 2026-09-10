@@ -7,7 +7,7 @@ import (
 	"html"
 	"strings"
 
-	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
+	"github.com/SerKuzo/goxlsx.git/internal/xmltree"
 )
 
 func (d *ExcelDoc) GetSheets() ([]xmltree.Sheet, error) {

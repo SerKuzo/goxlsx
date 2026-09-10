@@ -5,8 +5,8 @@
 package goxlsx
 
 import (
-	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
-	implementation "github.com/Puzzanis/goxlsx.git/pkg/goxlsx"
+	"github.com/SerKuzo/goxlsx.git/internal/xmltree"
+	implementation "github.com/SerKuzo/goxlsx.git/pkg/goxlsx"
 )
 
 // ExcelDoc is the workbook handle used by the goxlsx API.

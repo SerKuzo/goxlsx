@@ -4,7 +4,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
+	"github.com/SerKuzo/goxlsx.git/internal/xmltree"
 )
 
 func TestStructAlignment(t *testing.T) {

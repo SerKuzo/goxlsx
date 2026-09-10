@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Puzzanis/goxlsx.git"
+	"github.com/SerKuzo/goxlsx.git"
 )
 
 //go test -bench . -benchmem ./tests/benchmark

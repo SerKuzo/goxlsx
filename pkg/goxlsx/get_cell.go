@@ -3,7 +3,7 @@ package goxlsx
 import (
 	"fmt"
 
-	"github.com/Puzzanis/goxlsx.git/internal/xmltree"
+	"github.com/SerKuzo/goxlsx.git/internal/xmltree"
 )
 
 // GetCellValue returns the value of a cell addressed with A1 or R1C1 notation.

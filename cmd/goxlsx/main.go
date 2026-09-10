@@ -49,17 +49,17 @@ func main() {
 		}
 	}(doc)
 
-	//sheets, _ := doc.GetSheets()
+	sheets, _ := doc.GetSheets()
 	//for _, sheet := range sheets {
 	//	//_, _ := doc.GetRows(sheet.Name)
 	//	m, _ := doc.GetMergedCells(sheet.Name)
-	//	fmt.Println(m)
+	fmt.Println(sheets)
 	//}
 
 	//m, _ := doc.GetRows("Таблица сигналов")
-	m, _ := doc.GetMergedCells("Таблица сигналов")
-	sortExcelRanges(m)
-	fmt.Println(m)
+	//m, _ := doc.GetMergedCells("Таблица сигналов")
+	//sortExcelRanges(m)
+	//fmt.Println(m)
 
 	//for _, sheet := range sheets {
 	//	fmt.Println(sheet.Name)
